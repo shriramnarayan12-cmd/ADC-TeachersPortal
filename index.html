@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ADC Smart Admin Portal</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
+    <style>
+        :root { --primary: #800000; --secondary: #2c3e50; --bg: #f4f7f6; --gold: #FFD700; --success: #1b5e20; --danger: #b71c1c; }
+        body { font-family: 'Segoe UI', sans-serif; background: var(--bg); margin: 0; display: flex; transition: 0.3s; overflow-x: hidden; height: 100vh; }
+        
+        nav { width: 260px; background: var(--secondary); color: white; height: 100vh; position: fixed; display: flex; flex-direction: column; transition: transform 0.3s ease; z-index: 1000; left: 0; }
+        body.sidebar-hidden nav { transform: translateX(-260px); }
+        
+        .nav-header { padding: 30px 20px; text-align: center; border-bottom: 1px solid rgba(255,255,255,0.1); }
+        .nav-item { padding: 18px 25px; cursor: pointer; transition: 0.3s; border-left: 4px solid transparent; display: flex; align-items: center; gap: 12px; font-size: 1rem; }
+        .nav-item.active { background: rgba(255,255,255,0.1); border-left-color: var(--primary); font-weight: bold; }
+        
+        main { margin-left: 260px; padding: 20px; width: calc(100% - 260px); transition: all 0.3s ease; box-sizing: border-box; min-height: 100vh; flex-grow: 1; display: flex; flex-direction: column; }
+        body.sidebar-hidden main { margin-left: 0; width: 100%; }
+        
+        #menu-toggle { position: fixed; left: 15px; top: 15px; z-index: 1100; background: var(--primary); color: white; border: none; border-radius: 50%; width: 45px; height: 45px; cursor: pointer; box-shadow: 0 2px 10px rgba(0,0,0,0.2); font-size: 1.2rem; display: flex; align-items: center; justify-content: center; }
+
+        .view { display: none; animation: fadeIn 0.4s ease; width: 100%; flex-grow: 1; }
+        .view.active { display: block; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+        .card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); margin-bottom: 20px; width: 100%; box-sizing: border-box; }
+        
+        .table-container { overflow-x: auto; max-height: 70vh; border-radius: 8px; border: 1px solid #eee; width: 100%; background: white; position: relative; }
+        .styled-table { width: 100%; border-collapse: separate; border-spacing: 0; min-width: 600px; }
+        .styled-table th, .styled-table td { padding: 12px 15px; text-align: left; border-bottom: 1px solid #f0f0f0; white-space: nowrap; }
+        .styled-table th { position: sticky; top: 0; background: #fff; z-index: 20; color: var(--secondary); border-bottom: 3px solid #eee; font-weight: 700; }
+        
+        #student-view .styled-table th:nth-child(2), 
+        #student-view .styled-table td:nth-child(2) {
+            position: sticky;
+            left: 0;
+            background: white;
+            z-index: 11;
+            width: 150px;
+            min-width: 150px;
+            box-shadow: 2px 0 5px rgba(0,0,0,0.05);
+        }
+        #student-view .styled-table th:nth-child(2) { z-index: 30; background: #f9f9f9; }
+
+        #attendance-view .styled-table th:nth-child(1), 
+        #attendance-view .styled-table td:nth-child(1) {
+            position: sticky;
+            left: 0;
+            background: white;
+            z-index: 11;
+            width: 150px;
+            min-width: 150px;
+        }
+        #attendance-view .styled-table th:nth-child(2), 
+        #attendance-view .styled-table td:nth-child(2) {
+            position: sticky;
+            left: 150px;
+            background: white;
+            z-index: 11;
+            width: 110px;
+            min-width: 110px;
+            box-shadow: 2px 0 5px rgba(0,0,0,0.05);
+        }
+        #attendance-view .styled-table th:nth-child(1), 
+        #attendance-view .styled-table th:nth-child(2) { z-index: 30; background: #f9f9f9; }
+
+        .btn { background: var(--primary); color: white; border: none; padding: 12px 20px; border-radius: 6px; cursor: pointer; font-weight: 600; transition: 0.2s; }
+        .btn-mini { background: #1565c0; padding: 8px 12px; font-size: 0.8rem; }
+        .btn-att { width: 100px; padding: 8px; font-weight: bold; border-radius: 6px; color: white; border: none; cursor: pointer; font-size: 0.85rem; }
+        .btn-att:disabled { opacity: 0.6; cursor: not-allowed; }
+
+        .eval-panel { display: none; border-top: 8px solid var(--primary); padding-top: 20px; margin-top: 20px; width: 100%; }
+        .eval-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 15px; width: 100%; }
+        .eval-section { background: #fffcfc; padding: 15px; border-radius: 10px; border: 1px solid #f2eaea; }
+        
+        select, input, textarea { padding: 10px; border: 1px solid #ddd; border-radius: 6px; width: 100%; box-sizing: border-box; margin-bottom: 10px; font-size: 1rem; }
+        select:disabled, input:disabled, textarea:disabled { background-color: #f9f9f9; cursor: not-allowed; color: #666; }
+        label { font-weight: 700; font-size: 0.85rem; color: #2c3e50; display: block; margin-bottom: 5px; }
+
+        .summary-chip { padding: 5px 10px; border-radius: 15px; margin: 3px; display: inline-block; font-size: 0.75rem; font-weight: 600; }
+        .present-name { background-color: #e8f5e9; color: #2e7d32; border: 1px solid #c8e6c9; }
+        .absent-name { background-color: #ffebee; color: #c62828; border: 1px solid #ffcdd2; }
+
+        .att-badge { padding: 4px 8px; border-radius: 12px; font-size: 0.75rem; font-weight: 700; }
+
+        #admin-lock { position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 2000; display: none; align-items: center; justify-content: center; padding: 20px; }
+        .lock-box { background: white; padding: 25px; border-radius: 12px; text-align: center; width: 100%; max-width: 320px; }
+
+        @media (max-width: 768px) {
+            main { padding: 10px; padding-top: 70px; }
+            .card { padding: 15px; }
+            .filters-stack { flex-direction: column !important; align-items: stretch !important; gap: 10px !important; }
+            .filters-stack > div { width: 100% !important; }
+            .eval-grid { grid-template-columns: 1fr; }
+            .btn-att { width: 85px; font-size: 0.75rem; }
+            .styled-table { min-width: 500px; }
+        }
+    </style>
+</head>
+<body class="sidebar-hidden">
+
+<div id="admin-lock">
+    <div class="lock-box">
+        <h3 style="color:var(--primary);">Admin Authorization</h3>
+        <input type="password" id="admin-pass" placeholder="Enter Password">
+        <div style="display:flex; gap:10px; margin-top:15px;">
+            <button class="btn" style="flex:1; background:#666;" onclick="cancelAdmin()">Cancel</button>
+            <button class="btn" style="flex:1;" onclick="unlockAdmin()">Unlock</button>
+        </div>
+    </div>
+</div>
+
+<button id="menu-toggle" onclick="toggleSidebar()">☰</button>
+
+<nav id="sidebar">
+    <div class="nav-header">
+        <h2 style="margin:0; color:var(--gold); font-size: 1.2rem;">ADC PORTAL</h2>
+        <p style="font-size: 0.7rem; opacity: 0.7; margin-top: 5px;">ADMIN SUITE</p>
+    </div>
+    <div class="nav-links">
+        <div class="nav-item active" onclick="navAction('student-view', this)"><span>👤</span> Registry</div>
+        <div class="nav-item" onclick="navAction('attendance-view', this)"><span>📅</span> Attendance</div>
+        <div class="nav-item" id="admin-nav-btn" onclick="requestAdmin(this)"><span>⚙</span> Admin</div>
+    </div>
+</nav>
+
+<main>
+  
+    <div id="student-view" class="view active">
+        <div class="card">
+            <div class="filters-stack" style="display:flex; gap:15px; margin-bottom:15px; align-items: flex-end;">
+                <div style="width: 200px;"><label>Batch Select</label><select id="sheet-selector" onchange="loadBatchData(this.value)"></select></div>
+                <div style="flex:1;"><label>Search Name/ID</label><input type="text" id="regSearch" onkeyup="renderRegistry()" placeholder="Filter..."></div>
+            </div>
+            <div id="loading-spinner" style="display:none; color: var(--primary); font-weight: bold; margin-bottom: 10px; font-size: 0.8rem;">🔄 Syncing...</div>
+            <div class="table-container">
+                <table class="styled-table">
+                    <thead id="reg-head"></thead>
+                    <tbody id="reg-body"></tbody>
+                </table>
+  
+            </div>
+        </div>
+
+        <div id="eval-panel" class="card eval-panel">
+            <div style="display:flex; justify-content: space-between; align-items:center; margin-bottom:20px;">
+                <h3 id="eval-name" style="margin:0; color:var(--primary); font-size: 1.1rem;">Evaluation</h3>
+                <button class="btn btn-mini" style="background:#666;" onclick="closeEval()">✕</button>
+            </div>
+            <div class="eval-grid">
+                <div class="eval-section">
+                    <h4 style="color: var(--primary); border-bottom: 1px solid #eee; padding-bottom: 5px; font-size: 0.9rem;">ANGIKA</h4>
+                    <label>Coordination</label><select id="e1"></select>
+                    <label>Clarity</label><select id="e2"></select>
+                    <label>Energy</label><select id="e3"></select>
+                    <label>Style</label><select id="e4"></select>
+         
+                </div>
+                <div class="eval-section">
+                    <h4 style="color: var(--primary); border-bottom: 1px solid #eee; padding-bottom: 5px; font-size: 0.9rem;">VACHIKA / AHARYA</h4>
+                    <label>Jatis/Bols</label><select id="e5"></select>
+                    <label>Shlokas</label><select id="e6"></select>
+                    <label>Aharya/Dress</label><select id="e7"></select>
+                </div>
+            
+                <div class="eval-section">
+                    <h4 style="color: var(--primary); border-bottom: 1px solid #eee; padding-bottom: 5px; font-size: 0.9rem;">SATHVIKA</h4>
+                    <label>Ananda</label><select id="e8"></select>
+                    <label>Abhinaya</label><select id="e9"></select>
+                    <label>Music Response</label><select id="e10"></select>
+                </div>
+             
+                <div class="eval-section">
+                    <h4 style="color: var(--primary); border-bottom: 1px solid #eee; padding-bottom: 5px; font-size: 0.9rem;">OBSERVATIONS</h4>
+                    <label>Communication</label><select id="e11"></select>
+                    <label>Punctuality</label><select id="e12"></select>
+                    <label>Attention</label><select id="e13"></select>
+                </div>
+            </div>
+  
+           <div style="margin-top:15px;">
+                <label>FEEDBACK</label>
+                <textarea id="e_feedback" rows="3" placeholder="Notes..."></textarea>
+            </div>
+            <button class="btn" style="width:100%; padding:15px; margin-top:10px;" onclick="generatePDF()">GENERATE REPORT</button>
+        </div>
+    </div>
+
+    <div id="attendance-view" class="view">
+        <div class="card">
+            <h2 style="margin-top:0; font-size: 1.2rem;">Attendance</h2>
+            <div class="filters-stack" style="display:flex; gap:15px; align-items:flex-end; margin-bottom:15px;">
+                <div style="width:180px;"><label>Date</label><input type="date" id="att-date" onchange="renderAttendance()"></div>
+                <div style="flex:1;"><label>Session Notes</label><input type="text" id="attendance-notes" placeholder="Topics taught..."></div>
+            </div>
+            <div class="table-container">
+                <table class="styled-table">
+                    <thead><tr><th>Name</th><th>Status</th></tr></thead>
+                    <tbody id="att-body"></tbody>
+                </table>
+            </div>
+            <div style="display:flex; gap:10px; margin-top:15px;">
+                <button class="btn" id="finalize-btn" style="flex:2;" onclick="saveAttendance()">FINALIZE SESSION</button>
+                <button class="btn" style="flex:1; background:#2e7d32;" onclick="exportAttendanceToExcel()">📊 EXPORT MONTHLY</button>
+            </div>
+            <div id="attendance-summary" class="card" style="display:none; margin-top:15px; border-top: 4px solid var(--primary);">
+                <div id="summary-stats" style="font-weight:bold; margin-bottom:10px;"></div>
+                <div id="present-list"></div>
+                <div id="absent-list" style="margin-top:10px;"></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="admin-view" class="view">
+        <div class="card">
+            <h2>Admin Controls</h2>
+            <button class="btn" style="background:var(--danger); width:100%; margin-top:30px;" onclick="resetSystem()">RESET PORTAL</button>
+        </div>
+    </div>
+</main>
+
+<script>
+    const BRIDGE_URL = "https://script.google.com/macros/s/AKfycbzRSE364_p7Z06S6ya5Vl9OwNQwBNBX4eqF2MnUcoGuGJEGUGqxca2YbuQX9Dz-Yko30Q/exec";
+    const GID_MAP = {
+        "Adithi 5pm": "0", "Adithi 6pm": "1940190562", "Apoorva 7am": "1219244783", "Apoorva 8pm": "547653971",
+        "Ashwin 7am": "1712559510", "Ashwin 8am": "648436978", "Ashwin 9am": "577886897", "Bhavana 6pm": "31263772",
+        "Bhavana 8pm": "454069742", "Kavana Tue-Thu": "890169562", "Kavana Sat-Sun": "441906484", "Harshita": "1013468643",
+        "Manasa": "605027068", "Pooja 6pm": "1879163972", "Rohini P Mo-Thu 7PM": "1315203145", "Rohini Wed-Fri 7PM": "1189203349", "Spurthi 5PM": "1200231482", "Spurthi 7PM": "751596871", "Spurthi 8PM": "866523866", "Indu 7AM": "996897319", "Indu 8AM": "899960958", "Medha 5PM": "1041332286", "Medha 7PM": "582952366", "Meera 6PM" : "2076956977", "Smruthi 5PM": "1152095564", "Smruthi 6PM": "1320845767", "NR": "1654885843"
+    };
+
+    const MAPPED_TEXT = {
+        e1: { 8: "Very good: Work on more details with eyes, eye brows & finger tips, practice every day for one hour", 5: "Good: Work on repetitions and every time observe keenly how the relationship builds between different parts of the body. Consciously give it a wholesome treatment. Practice one hour every day", 1: "Could Improve: Practice each movement five times before you move to next and keep it going till you complete the lesson, Practice every day for 1- 2 hours" },
+        e2: { 8: "Very good: Keep practising to maintain because without practise quality can drop. Work on all compositions learnt", 5: "Good: Work on finishing each action fully to get to next level, repeat practise helps in better clarity", 1: "Could Improve: Keep conscious awareness of movements & details it requires, repeat all movements / segments five times. Practise every day for 1-2 hrs" },
+        e3: { 8: "Very Good: Give attention to each movement, footwork and wholesome involvement of the body involving the respective Upangas. 6 hrs a week of self-practice will help maintain stamina", 5: "Good: Pay attention to developing stamina and wholesome involvement of the body with more details given to the Upangas used. Upper body needs to relax", 1: "Could Improve: Need to develop more stamina, work on the memory of movements and consistent practice of the compositions learnt. Practice 60 mins a day for 4 days a week, increase gradually." },
+        e4: { 8: "Very Good: Keep it up, body postures and aesthetics well maintained. Observe gurus, seniors & extraordinary performers of Bharathanatyam to develop deeper understanding of the style", 5: "Good: Observation of senior dancers & gurus with regard to alignment of movements, posture & correct yourself in front of mirror", 1: "Could Improve: Body posture needs to improve and work on the style of each movements/adavus taught practice slowly in front of mirror." },
+        e5: { 8: "Very good : 20 mins thrice a week practice will greatly help get to next level in clarity of jatis/shollukattu/bols & develop stamina , say it to Tala.", 5: "Good : Practice repeatedly for 15 mins four times a week to manage breath control & develop strength in voice. Say it with Tala", 1: "Could Improve : Practice repeatedly for 15 -20 mins every day to manage breath control & develop strength in voice. Say it with Tala" },
+        e6: { 8: "Very good : Keep it up voice can be heard with more clarity", 5: "Good: Practice with friends, get more clarity on pronunciation & volume", 1: "Could Improve : Practice alone & with friends voice needs power, get more clarity on pronunciation & volume" },
+        e7: { 8: "Very Good : Well managed , keep it up !", 5: "Good : Duppattas / Saree needs to be tied properly", 1: "Could Improve : Duppattas/Saree need to be tied properly & hair to be braided" },
+        e8: { 8: "Very Good: Keep it up! It is a pleasure to see you enjoy", 5: "Good: However Ananda is covered by memory issues and tiredness. So train your body through practise, this will give muscle memory & you may easily enjoy", 1: "Could Improve: Remember you dance because you like it, enjoyment can happen if body is fit & flexible." },
+        e9: { 8: "Very Good : Keep it up , observe maestros for more details on the expressions. Keep music in your heart and the words in mind.", 5: "Good : Work on usage of eyes, eyebrows, and other facial muscles to express the abhinaya. Keep practice through singing the song, listen to it repeatedly.", 1: "Could Improve : Work hard on developing clarity in each gesture, memorize the song. Observe seniors in class or watch videos." },
+        e10: { 8: "Very Good : Keep it up, keep music in your heart and the words in mind and also the nuances of singing & accompanying instruments.", 5: "Good : Keep practice through singing the song of the dance, listen to the song repeatedly so that you may start enjoying the nuances.", 1: "Could Improve : Keep practice through singing the song of the dance. Work on developing ability to sing the song of the dance." },
+        e11: { 8: "Very Good: Keep it up , good you give prior information about attendance. Discussions with faculty helps in deeper understanding.", 5: "Good: Consistency in communicating attendance will help create better bonding with faculty. Feel free to ask details on lessons.", 1: "Could Improve: Feel freer & connected with faculty / institution. Prior information of attendance is essential. Do not hesitate to ask." },
+        e12: { 8: "Very Good", 5: "Good", 1: "Could Improve" },
+        e13: { 8: "Very Good : Keep the keen observation on details & work on going deeper.", 5: "Good : Observe more & work on applying details to dance", 1: "Could Improve : Requires much more observation & work on applying the corrections." }
+    };
+
+    let currentData = [], currentBatchName = "", selectedStudent = null;
+    let historyDB = JSON.parse(localStorage.getItem('adc_db')) || {};
+    let lockedDates = JSON.parse(localStorage.getItem('adc_locks')) || [];
+
+    window.onload = () => {
+        const selector = document.getElementById('sheet-selector');
+        Object.keys(GID_MAP).forEach(name => selector.options.add(new Option(name, name)));
+        loadBatchData(Object.keys(GID_MAP)[0]);
+        document.getElementById('att-date').valueAsDate = new Date();
+        for(let i=1; i<=13; i++) {
+            const sel = document.getElementById('e' + i);
+            if(sel) { for(let j=10; j>=1; j--) sel.options.add(new Option(j, j)); sel.value = 8; }
+        }
+    };
+
+    async function loadBatchData(batchName) {
+        currentBatchName = batchName;
+        document.getElementById('loading-spinner').style.display = 'block';
+        document.getElementById('reg-body').innerHTML = "";
+        document.getElementById('att-body').innerHTML = "";
+        
+        try {
+            const response = await fetch(`${BRIDGE_URL}?gid=${GID_MAP[batchName]}`);
+            const data = await response.json();
+            if (data.length > 0) {
+                const headers = data[0];
+                currentData = data.slice(1).map(row => {
+                    let obj = {};
+                    headers.forEach((h, index) => obj[h] = row[index]);
+                    return obj;
+                });
+                renderRegistry();
+                if(document.getElementById('attendance-view').classList.contains('active')) renderAttendance();
+            }
+        } catch (e) { console.error(e); }
+        document.getElementById('loading-spinner').style.display = 'none';
+    }
+
+    function renderRegistry() {
+        if (!currentData.length) return;
+        const headers = Object.keys(currentData[0]);
+        const idKey = headers[0];
+        
+        document.getElementById('reg-head').innerHTML = `<tr>${headers.map(h => `<th>${h}</th>`).join('')}<th>Live Att.</th><th>Action</th></tr>`;
+        const query = document.getElementById('regSearch').value.toLowerCase();
+        const filtered = currentData.filter(r => Object.values(r).some(v => String(v).toLowerCase().includes(query)));
+        
+        document.getElementById('reg-body').innerHTML = filtered.map(row => {
+            const studentId = row[idKey];
+            let presentCount = 0, totalSessions = 0;
+            Object.keys(historyDB).filter(k => k.startsWith(currentBatchName)).forEach(k => {
+                totalSessions++;
+                if (historyDB[k].attendance && historyDB[k].attendance[studentId] === 'P') presentCount++;
+            });
+            const percent = totalSessions > 0 ? Math.round((presentCount/totalSessions)*100) : 0;
+            const badgeColor = percent > 80 ? '#e8f5e9' : (percent > 50 ? '#fff3e0' : '#ffebee');
+            const textColor = percent > 80 ? '#2e7d32' : (percent > 50 ? '#ef6c00' : '#c62828');
+
+            return `<tr>
+                ${headers.map(h => `<td>${row[h] || '-'}</td>`).join('')}
+                <td><span class="att-badge" style="background:${badgeColor}; color:${textColor}">${percent}%</span></td>
+                <td><button class="btn btn-mini" onclick='openEval(${JSON.stringify(row)})'>Eval</button></td>
+            </tr>`;
+        }).join('');
+    }
+
+    function toggleSidebar() { document.body.classList.toggle('sidebar-hidden'); }
+    function navAction(viewId, el) {
+        document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+        document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
+        document.getElementById(viewId).classList.add('active');
+        if(el) el.classList.add('active');
+        if(viewId === 'attendance-view') renderAttendance();
+        if(viewId === 'student-view') renderRegistry();
+        if(window.innerWidth <= 768) document.body.classList.add('sidebar-hidden');
+    }
+
+    function openEval(studentData) {
+        selectedStudent = studentData;
+        const nameKey = Object.keys(studentData).find(k => k.toLowerCase().includes('name'));
+        document.getElementById('eval-name').innerText = "Eval: " + studentData[nameKey];
+        document.getElementById('eval-panel').style.display = 'block';
+        document.getElementById('eval-panel').scrollIntoView({ behavior: 'smooth' });
+    }
+
+    function closeEval() { document.getElementById('eval-panel').style.display = 'none'; }
+
+    function renderAttendance() {
+        const date = document.getElementById('att-date').value;
+        if(!date || !currentBatchName) return;
+        const key = currentBatchName + "_" + date;
+        if(!historyDB[key]) historyDB[key] = { attendance: {}, notes: "" };
+        const isLocked = lockedDates.includes(key);
+
+        document.getElementById('finalize-btn').disabled = isLocked;
+        document.getElementById('attendance-notes').disabled = isLocked;
+        document.getElementById('attendance-notes').value = historyDB[key].notes || "";
+        document.getElementById('attendance-summary').style.display = isLocked ? 'block' : 'none';
+
+        const idKey = Object.keys(currentData[0])[0];
+        const nameKey = Object.keys(currentData[0])[1];
+        document.getElementById('att-body').innerHTML = currentData.map(row => {
+            const id = row[idKey], name = row[nameKey];
+            const status = (historyDB[key].attendance && historyDB[key].attendance[id]) || 'A';
+            return `<tr data-id="${id}" data-name="${name}"><td>${name}</td><td><button class="btn-att" style="background:${status==='P'?'green':'red'}" ${isLocked?'disabled':''} onclick="toggleAtt(this, '${id}', '${key}')">${status==='P'?'Present':'Absent'}</button></td></tr>`;
+        }).join('');
+        if(isLocked) updateSummaryUI();
+    }
+
+    function toggleAtt(btn, id, key) {
+        const isPresent = btn.innerText === "Present";
+        const newStatus = isPresent ? 'A' : 'P';
+        btn.innerText = newStatus === 'P' ? 'Present' : 'Absent';
+        btn.style.background = newStatus === 'P' ? 'green' : 'red';
+        if(!historyDB[key].attendance) historyDB[key].attendance = {};
+        historyDB[key].attendance[id] = newStatus;
+    }
+
+    function updateSummaryUI() {
+        let p = 0, a = 0;
+        const pList = document.getElementById('present-list'), aList = document.getElementById('absent-list');
+        pList.innerHTML = ""; aList.innerHTML = "";
+        document.querySelectorAll('#att-body tr').forEach(tr => {
+            const name = tr.dataset.name, status = tr.querySelector('button').innerText;
+            if(status === "Present") { pList.innerHTML += `<span class="summary-chip present-name">${name}</span>`; p++; }
+            else { aList.innerHTML += `<span class="summary-chip absent-name">${name}</span>`; a++; }
+        });
+        document.getElementById('summary-stats').innerText = `Present: ${p} | Absent: ${a}`;
+    }
+
+    function saveAttendance() {
+        const date = document.getElementById('att-date').value;
+        if(!date) return alert("Select date");
+        const key = currentBatchName + "_" + date;
+        historyDB[key].notes = document.getElementById('attendance-notes').value;
+        if(!lockedDates.includes(key)) lockedDates.push(key);
+        localStorage.setItem('adc_db', JSON.stringify(historyDB));
+        localStorage.setItem('adc_locks', JSON.stringify(lockedDates));
+        renderAttendance();
+    }
+
+    function requestAdmin() { document.getElementById('admin-lock').style.display = 'flex'; }
+    function unlockAdmin() { if(document.getElementById('admin-pass').value === "ADC2026") { document.getElementById('admin-lock').style.display = 'none'; navAction('admin-view', document.getElementById('admin-nav-btn')); } }
+    function cancelAdmin() { document.getElementById('admin-lock').style.display = 'none'; }
+    function resetSystem() { if(confirm("Clear data?")) { localStorage.clear(); location.reload(); } }
+
+    function getExcelText(id, score) {
+        const val = parseInt(score);
+        const map = MAPPED_TEXT[id];
+        if (val >= 8) return map[8];
+        if (val >= 5) return map[5];
+        return map[1];
+    }
+
+    function generatePDF() {
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF();
+        const student = selectedStudent;
+        const headers = Object.keys(student);
+        const nameKey = headers.find(k => k.toLowerCase().includes('name'));
+
+        doc.setFillColor(128, 0, 0); doc.rect(0, 0, 210, 42, 'F');
+        doc.setTextColor(255, 255, 255); doc.setFontSize(22);
+        doc.setFont(undefined, 'bold');
+        doc.text("ABHINAVA DANCE COMPANY", 105, 20, { align: "center" });
+        doc.setFontSize(12);
+        doc.text("PERFORMANCE EVALUATION REPORT", 105, 30, { align: "center" });
+
+        doc.setTextColor(128, 0, 0); doc.setFontSize(11); doc.text("STUDENT PROFILE", 14, 52);
+        doc.setDrawColor(128, 0, 0); doc.line(14, 54, 196, 54);
+        
+        const profileRows = headers.map(h => [h.toUpperCase(), student[h] || "-"]);
+        doc.autoTable({
+            startY: 58,
+            body: profileRows,
+            theme: 'plain',
+            styles: { fontSize: 10, cellPadding: 1 },
+            columnStyles: { 0: { fontStyle: 'bold', width: 60 } }
+        });
+
+        let currentY = doc.lastAutoTable.finalY + 12;
+        doc.setTextColor(128, 0, 0); doc.text("TECHNICAL PERFORMANCE ASSESSMENT", 14, currentY);
+        doc.line(14, currentY + 2, 196, currentY + 2);
+
+        const evalCriteria = [
+            ["Angika Coordination", "e1"], ["Angika Clarity", "e2"], ["Angika Energy", "e3"], ["Angika Style", "e4"],
+            ["Vachika Jatis", "e5"], ["Vachika Shlokas", "e6"], ["Aharya Dress", "e7"],
+            ["Sathvika Ananda", "e8"], ["Sathvika Abhinaya", "e9"], ["Sathvika Music", "e10"],
+            ["Communication", "e11"], ["Punctuality", "e12"], ["Attention", "e13"]
+        ];
+
+        const evalData = evalCriteria.map(item => {
+            const score = document.getElementById(item[1]).value;
+            return [item[0].toUpperCase(), score, getExcelText(item[1], score)];
+        });
+
+        doc.autoTable({
+            startY: currentY + 6,
+            head: [['CRITERIA', 'SCORE', 'FULL PERFORMANCE EVALUATION']],
+            body: evalData,
+            theme: 'striped',
+            headStyles: { fillColor: [128, 0, 0] },
+            styles: { fontSize: 8.5 },
+            columnStyles: { 0: { width: 45 }, 1: { halign: 'center', width: 20 }, 2: { cellWidth: 'auto' } }
+        });
+
+        currentY = doc.lastAutoTable.finalY + 10;
+        if(currentY > 260) { doc.addPage(); currentY = 20; }
+        doc.setTextColor(128, 0, 0); doc.text("GURU FEEDBACK:", 14, currentY);
+        doc.setTextColor(0,0,0); doc.setFont(undefined, 'normal');
+        doc.text(document.getElementById('e_feedback').value || "No additional notes.", 14, currentY + 8, { maxWidth: 180 });
+        
+        doc.save(`ADC_Eval_${student[nameKey].replace(/\s+/g, '_')}.pdf`);
+    }
+
+    // NEW EXPORT FEATURE: Exports monthly attendance and session notes to Excel
+    function exportAttendanceToExcel() {
+        const dateInput = document.getElementById('att-date').value;
+        if (!dateInput) return alert("Please select a date first to identify the month.");
+        
+        const selectedMonth = dateInput.substring(0, 7); // YYYY-MM
+        const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+        const displayMonth = monthNames[parseInt(dateInput.substring(5, 7)) - 1] + " " + dateInput.substring(0, 4);
+        
+        // Find all records for this batch in the selected month
+        const monthlyKeys = Object.keys(historyDB)
+            .filter(k => k.startsWith(currentBatchName + "_" + selectedMonth))
+            .sort();
+
+        if (monthlyKeys.length === 0) return alert("No attendance records found for " + displayMonth);
+
+        const idKey = Object.keys(currentData[0])[0];
+        const nameKey = Object.keys(currentData[0])[1];
+
+        // 1. Attendance Sheet Data
+        const attendanceData = currentData.map(student => {
+            const row = { "Student ID": student[idKey], "Student Name": student[nameKey] };
+            monthlyKeys.forEach(key => {
+                const date = key.split('_')[1];
+                row[date] = (historyDB[key].attendance && historyDB[key].attendance[student[idKey]]) === 'P' ? 'P' : 'A';
+            });
+            return row;
+        });
+
+        // 2. Session Notes Sheet Data
+        const notesData = monthlyKeys.map(key => ({
+            "Date": key.split('_')[1],
+            "Session Topics / Notes": historyDB[key].notes || "No notes entered"
+        }));
+
+        // Create Workbook
+        const wb = XLSX.utils.book_new();
+        const wsAtt = XLSX.utils.json_to_sheet(attendanceData);
+        const wsNotes = XLSX.utils.json_to_sheet(notesData);
+
+        XLSX.utils.book_append_sheet(wb, wsAtt, "Attendance");
+        XLSX.utils.book_append_sheet(wb, wsNotes, "Session Notes");
+
+        // Save File
+        XLSX.writeFile(wb, `ADC_${currentBatchName.replace(/\s+/g, '_')}_${selectedMonth}.xlsx`);
+    }
+</script>
+</body>
+</html>
