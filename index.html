@@ -122,7 +122,7 @@
         <p style="font-size: 0.7rem; opacity: 0.7; margin-top: 5px;">ADMIN SUITE</p>
     </div>
     <div class="nav-links">
-        <div class="nav-item active" onclick="navAction('student-view', this)"><span>👤</span> Registry</div>
+        <div class="nav-item active" onclick="navAction('student-view', this)"><span>👤</span> Student</div>
         <div class="nav-item" onclick="navAction('attendance-view', this)"><span>📅</span> Attendance</div>
         <div class="nav-item" id="admin-nav-btn" onclick="requestAdmin(this)"><span>⚙</span> Admin</div>
     </div>
@@ -309,7 +309,7 @@
             return `<tr>
                 ${headers.map(h => `<td>${row[h] || '-'}</td>`).join('')}
                 <td><span class="att-badge" style="background:${badgeColor}; color:${textColor}">${percent}%</span></td>
-                <td><button class="btn btn-mini" onclick='openEval(${JSON.stringify(row)})'>Eval</button></td>
+                <td><button class="btn btn-mini" onclick='openEval(${JSON.stringify(row)})'>Evaluation</button></td>
             </tr>`;
         }).join('');
     }
