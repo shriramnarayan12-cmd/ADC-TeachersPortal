@@ -1,6 +1,24 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <script>
+    // Immediately hide the page until the password is correct
+    document.documentElement.style.display = 'none';
+
+    function checkMainPassword() {
+        // SET YOUR PASSWORD HERE
+        var password = "YourSecretPassword123";
+        var userEntry = prompt("Please enter the Site Access Password:");
+
+        if (userEntry === password) {
+            document.documentElement.style.display = 'block';
+        } else {
+            alert("Incorrect password. Access denied.");
+            window.location.reload();
+        }
+    }
+    checkMainPassword();
+</script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ADC Smart Admin Portal</title>
